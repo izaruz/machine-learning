@@ -1,0 +1,133 @@
+---
+title: "Prediction Assignment Writeup"
+author: "IsaacVillatoro"
+date: "September 19, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### Choosing the prediction algorithm
+
+Load required R libraries and set the global option:
+
+```{r}
+# install.packages("caret"); install.packages("randomForest"); install.packages("rpart"); 
+library(lattice); 
+library(ggplot2); 
+library(caret); 
+library(randomForest); 
+library(rpart); 
+library(rpart.plot);
+```
+
+Download the training & test data and read it as csv file:
+```{r}
+if (!file.exists("pmlTraining.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+        destfile = "pmlTraining.csv")
+}
+if (!file.exists("pmlTesting.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+        destfile = "pmlTesting.csv")
+}
+
+trainingSet <- read.csv("pmlTraining.csv", na.strings = c("NA","#DIV/0!", ""))
+testingSet <- read.csv("pmlTesting.csv", na.strings = c("NA","#DIV/0!", ""))
+
+```
+
+The training set consists of 19622 observations of 160 variables, one of which is the dependent variable as far as this study is concerned:
+
+```{r}
+dim(trainingSet)
+```
+
+Delete additional unnecessary columns from the pared-down training and testing datasets.
+
+```{r}
+trainingSet<-trainingSet[,colSums(is.na(trainingSet)) == 0]
+testingSet <-testingSet[,colSums(is.na(testingSet)) == 0]
+
+trainingSet   <-trainingSet[,-c(1:7)]
+testingSet <-testingSet[,-c(1:7)]
+```
+
+I partitioned the training set into a smaller set called traintrainset to speed up the running of the model
+
+```{r}
+traintrainset <- createDataPartition(y=trainingSet$classe, p=0.7, list=FALSE)
+TraintrainingSet <- trainingSet[traintrainset, ] 
+TesttrainingSet <- trainingSet[-traintrainset, ]
+```
+
+The variable "classe" contains 5 levels: A, B, C, D and E. A plot of the outcome variable will allow us to see the frequency of each levels in the TraintrainingSet data set and # compare one another.
+
+```{r}
+plot(TraintrainingSet$classe, col=rainbow(5), main="Plot of levels of variable classe within the TraintrainingSet data set", xlab="classe", ylab="Frequency", border="blue", density=c(30,30,30,30,30))
+```
+
+Based on the graph above, we can see that each level frequency is within the same order of magnitude of each other. Level A is the most frequent while level D is the least frequent.
+
+## Prediction model 1: Decision Tree
+
+```{r}
+model1 <- rpart(classe ~ ., data=TraintrainingSet, method="class")
+
+prediction1 <- predict(model1, TesttrainingSet, type = "class")
+
+# Plot the Decision Tree
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+```
+
+Test results on our TesttrainingSet data set:
+
+```{r}
+confusionMatrix(prediction1, TesttrainingSet$classe)
+```
+
+## Prediction model 2: Random Forest
+
+```{r}
+model2 <- randomForest(classe ~. , data=TraintrainingSet, method="class")
+
+# Predicting:
+prediction2 <- predict(model2, TesttrainingSet, type = "class")
+
+# Test results on TesttrainingSet data set:
+confusionMatrix(prediction2, TesttrainingSet$classe)
+```
+
+## Decision on which Prediction Model to Use
+
+Random Forest algorithm performed better than Decision Trees. Accuracy for Random Forest model was 99% compared to Decision Tree model with 75%. The Random Forests model is choosen. The expected out-of-sample error is estimated at 0.005, or 0.5%.
+
+## Submission
+
+Here is the final outcome based on the Prediction Model 2 (Random Forest) applied against the Testing dataset
+
+```{r}
+# predict outcome levels on the original Testing data set using Random Forest algorithm
+predictfinal <- predict(model2, testingSet, type="class")
+predictfinal
+```
+
